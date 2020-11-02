@@ -23,32 +23,22 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.terracotta.testing.rules.Cluster;
 
-import java.io.File;
 import java.net.URI;
-import java.util.concurrent.TimeUnit;
 
 import static org.ehcache.clustered.client.config.builders.ClusteredResourcePoolBuilder.clusteredDedicated;
 import static org.ehcache.clustered.client.config.builders.ClusteringServiceConfigurationBuilder.cluster;
 import static org.ehcache.config.builders.CacheConfigurationBuilder.newCacheConfigurationBuilder;
 import static org.ehcache.config.builders.CacheManagerBuilder.newCacheManagerBuilder;
 import static org.ehcache.config.builders.ResourcePoolsBuilder.newResourcePoolsBuilder;
-import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertThat;
+import static org.ehcache.testing.StandardTimeouts.eventually;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.terracotta.testing.rules.BasicExternalClusterBuilder.newCluster;
 
 public class AutoCreateOnReconnectTest extends ClusteredTests {
-  public static final String RESOURCE_CONFIG =
-    "<config xmlns:ohr='http://www.terracotta.org/config/offheap-resource'>"
-      + "<ohr:offheap-resources>"
-      + "<ohr:resource name=\"primary-server-resource\" unit=\"MB\">64</ohr:resource>"
-      + "</ohr:offheap-resources>"
-      + "</config>\n";
 
   @ClassRule
-  public static Cluster CLUSTER = newCluster(1)
-    .in(new File("build/cluster"))
-    .withServiceFragment(RESOURCE_CONFIG)
-    .build();
+  public static Cluster CLUSTER = newCluster(1).in(clusterPath())
+    .withServiceFragment(offheapResource("primary-server-resource", 64)).build();
 
   @Test
   public void cacheManagerCanReconnect() throws Exception {
@@ -69,11 +59,10 @@ public class AutoCreateOnReconnectTest extends ClusteredTests {
       CLUSTER.getClusterControl().terminateAllServers();
       CLUSTER.getClusterControl().startAllServers();
 
-      while (cache.get(1L) == null) {
-        Thread.sleep(100);
+      assertThat(() -> {
         cache.put(1L, "two");
-      }
-      assertThat(cache.get(1L), is("two"));
+        return cache.get(1L);
+      }, eventually().is("two"));
     }
   }
 }

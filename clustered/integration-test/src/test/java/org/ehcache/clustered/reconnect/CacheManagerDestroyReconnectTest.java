@@ -23,17 +23,21 @@ import org.ehcache.clustered.util.TCPProxyUtil;
 import org.ehcache.config.builders.CacheManagerBuilder;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.terracotta.testing.rules.Cluster;
+import org.terracotta.utilities.test.rules.TestRetryer;
 
-import java.io.File;
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.ehcache.clustered.reconnect.BasicCacheReconnectTest.RESOURCE_CONFIG;
+import static java.time.Duration.ofSeconds;
 import static org.ehcache.clustered.util.TCPProxyUtil.setDelay;
 import static org.terracotta.testing.rules.BasicExternalClusterBuilder.newCluster;
+import static org.terracotta.utilities.test.rules.TestRetryer.OutputIs.CLASS_RULE;
+import static org.terracotta.utilities.test.rules.TestRetryer.tryValues;
 
 public class CacheManagerDestroyReconnectTest extends ClusteredTests {
 
@@ -42,15 +46,15 @@ public class CacheManagerDestroyReconnectTest extends ClusteredTests {
 
   private static final List<TCPProxy> proxies = new ArrayList<>();
 
-  @ClassRule
-  public static Cluster CLUSTER =
-          newCluster().in(new File("build/cluster")).withServiceFragment(RESOURCE_CONFIG).build();
+  @ClassRule @Rule
+  public static final TestRetryer<Duration, Cluster> CLUSTER = tryValues(ofSeconds(1), ofSeconds(10), ofSeconds(30))
+    .map(leaseLength -> newCluster().in(clusterPath()).withServiceFragment(
+      offheapResource("primary-server-resource", 64) + leaseLength(leaseLength)).build())
+    .outputIs(CLASS_RULE);
 
   @BeforeClass
-  public static void waitForActive() throws Exception {
-    CLUSTER.getClusterControl().waitForActive();
-
-    URI connectionURI = TCPProxyUtil.getProxyURI(CLUSTER.getConnectionURI(), proxies);
+  public static void initializeCacheManager() throws Exception {
+    URI connectionURI = TCPProxyUtil.getProxyURI(CLUSTER.get().getConnectionURI(), proxies);
 
     CacheManagerBuilder<PersistentCacheManager> clusteredCacheManagerBuilder
             = CacheManagerBuilder.newCacheManagerBuilder()
@@ -63,10 +67,13 @@ public class CacheManagerDestroyReconnectTest extends ClusteredTests {
   @Test
   public void testDestroyCacheManagerReconnects() throws Exception {
 
-    setDelay(6000, proxies);
-    Thread.sleep(6000);
-
-    setDelay(0L, proxies);
+    long delay = CLUSTER.input().plusSeconds(1L).toMillis();
+    setDelay(delay, proxies);
+    try {
+      Thread.sleep(delay);
+    } finally {
+      setDelay(0L, proxies);
+    }
 
     cacheManager.close();
 

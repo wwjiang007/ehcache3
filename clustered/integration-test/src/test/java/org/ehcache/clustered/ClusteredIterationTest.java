@@ -27,7 +27,6 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.terracotta.testing.rules.Cluster;
 
-import java.io.File;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -50,16 +49,9 @@ import static org.terracotta.testing.rules.BasicExternalClusterBuilder.newCluste
 
 public class ClusteredIterationTest extends ClusteredTests {
 
-  private static final String RESOURCE_CONFIG =
-    "<config xmlns:ohr='http://www.terracotta.org/config/offheap-resource'>"
-      + "<ohr:offheap-resources>"
-      + "<ohr:resource name=\"primary-server-resource\" unit=\"MB\">64</ohr:resource>"
-      + "</ohr:offheap-resources>" +
-      "</config>\n";
-
   @ClassRule
-  public static Cluster CLUSTER =
-    newCluster().in(new File("build/cluster")).withServiceFragment(RESOURCE_CONFIG).build();
+  public static Cluster CLUSTER = newCluster().in(clusterPath())
+    .withServiceFragment(offheapResource("primary-server-resource", 64)).build();
 
   @Rule
   public final TestName testName = new TestName();

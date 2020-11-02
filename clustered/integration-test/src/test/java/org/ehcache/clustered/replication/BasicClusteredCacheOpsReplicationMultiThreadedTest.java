@@ -40,15 +40,13 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terracotta.testing.rules.Cluster;
+import org.terracotta.utilities.test.WaitForAssert;
 
-import java.io.File;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -84,12 +82,6 @@ public class BasicClusteredCacheOpsReplicationMultiThreadedTest extends Clustere
 
   private static final int NUM_OF_THREADS = 10;
   private static final int JOB_SIZE = 100;
-  private static final String RESOURCE_CONFIG =
-      "<config xmlns:ohr='http://www.terracotta.org/config/offheap-resource'>"
-      + "<ohr:offheap-resources>"
-      + "<ohr:resource name=\"primary-server-resource\" unit=\"MB\">16</ohr:resource>"
-      + "</ohr:offheap-resources>" +
-      "</config>\n";
 
   private PersistentCacheManager cacheManager1;
   private PersistentCacheManager cacheManager2;
@@ -105,7 +97,10 @@ public class BasicClusteredCacheOpsReplicationMultiThreadedTest extends Clustere
   public Consistency cacheConsistency;
 
   @ClassRule @Rule
-  public static final ParallelTestCluster CLUSTER = new ParallelTestCluster(newCluster(2).in(new File("build/cluster")).withServiceFragment(RESOURCE_CONFIG).build());
+  public static final ParallelTestCluster CLUSTER = new ParallelTestCluster(newCluster(2).in(clusterPath())
+    .withServerHeap(512)
+    .withServiceFragment(offheapResource("primary-server-resource", 16)).build());
+
   @Rule
   public final TestName testName = new TestName();
 
@@ -120,8 +115,6 @@ public class BasicClusteredCacheOpsReplicationMultiThreadedTest extends Clustere
   @Before
   public void startServers() throws Exception {
     CLUSTER.getClusterControl().startAllServers();
-    CLUSTER.getClusterControl().waitForActive();
-    CLUSTER.getClusterControl().waitForRunningPassivesInStandby();
     final CacheManagerBuilder<PersistentCacheManager> clusteredCacheManagerBuilder
         = CacheManagerBuilder.newCacheManagerBuilder()
         .with(ClusteringServiceConfigurationBuilder.cluster(CLUSTER.getConnectionURI().resolve("/crud-cm-replication"))
@@ -146,9 +139,6 @@ public class BasicClusteredCacheOpsReplicationMultiThreadedTest extends Clustere
 
   @After
   public void tearDown() throws Exception {
-    CLUSTER.getClusterControl().startAllServers();
-    CLUSTER.getClusterControl().waitForRunningPassivesInStandby();
-
     List<Runnable> unprocessed = executorService.shutdownNow();
     if(!unprocessed.isEmpty()) {
       log.warn("Tearing down with {} unprocess task", unprocessed);
@@ -181,6 +171,7 @@ public class BasicClusteredCacheOpsReplicationMultiThreadedTest extends Clustere
       cache2.get(x);
     })));
 
+    CLUSTER.getClusterControl().waitForRunningPassivesInStandby();
     CLUSTER.getClusterControl().terminateActive();
 
     drainTasks(futures);
@@ -225,6 +216,7 @@ public class BasicClusteredCacheOpsReplicationMultiThreadedTest extends Clustere
       });
     }));
 
+    CLUSTER.getClusterControl().waitForRunningPassivesInStandby();
     CLUSTER.getClusterControl().terminateActive();
 
     drainTasks(futures);
@@ -273,6 +265,7 @@ public class BasicClusteredCacheOpsReplicationMultiThreadedTest extends Clustere
 
     Future<?> clearFuture = executorService.submit(() -> cache1.clear());
 
+    CLUSTER.getClusterControl().waitForRunningPassivesInStandby();
     CLUSTER.getClusterControl().terminateActive();
 
     clearFuture.get();

@@ -35,20 +35,15 @@ dependencies {
   }
 
   testImplementation project(':management')
-  testImplementation "org.terracotta.management.dist:mnm-nms:$terracottaPlatformVersion"
-  testImplementation "org.terracotta.management.dist:mnm-nms-agent:$terracottaPlatformVersion"
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:2.8.0"
-  testImplementation "org.awaitility:awaitility:3.1.6"
+  testImplementation "org.terracotta.management:nms-entity-client:$terracottaPlatformVersion"
+  testImplementation "org.terracotta.management:nms-agent-entity-client:$terracottaPlatformVersion"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
 
   testRuntimeOnly "org.glassfish.jaxb:jaxb-runtime:$parent.jaxbVersion"
   testRuntimeOnly project(':clustered:clustered-dist')
 
-  testImplementation (group:'org.terracotta.internal', name:'galvan-support', version: terracottaCoreVersion)
+  testImplementation (group:'org.terracotta', name:'galvan-platform-support', version: terracottaPlatformVersion)
   testImplementation group: 'javax.cache', name: 'cache-api', version: jcacheVersion
-
-  serverLibs ("org.terracotta.management.dist:mnm-server:$terracottaPlatformVersion") {
-    exclude group:'org.terracotta.management.dist', module:'mnm-common'
-  }
 }
 
 task unzipKit(type: Copy) {
